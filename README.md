@@ -2,6 +2,9 @@
 
 A full-year habit tracking application built with Next.js, TypeScript, and Tailwind CSS.
 
+<img width="1490" height="1490" alt="image" src="https://github.com/user-attachments/assets/b3f07361-1f64-49af-9e21-9313822a14a0" />
+
+
 ## Features
 
 - Track habits for the entire year 2025 (365 days)
