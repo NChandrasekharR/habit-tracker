@@ -155,6 +155,11 @@ const HabitTracker = () => {
     return { total, completed, currentStreak, longestStreak, lastWeek, lastMonth };
   };
 
+  // Memoize stats to avoid recalculating for each stat line
+  const allStats = React.useMemo(() => {
+    return habits.map((_, index) => getStats(index));
+  }, [habits, completions]);
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -297,9 +302,10 @@ const HabitTracker = () => {
                 <tr>
                   <th className="border p-2 bg-gray-50">Date</th>
                   {habits
-                    .filter(habit => selectedCategory === 'All' || habit.category === selectedCategory)
-                    .map((habit, index) => (
-                    <th key={index} className="border p-2 bg-gray-50">
+                    .map((habit, originalIndex) => ({ habit, originalIndex }))
+                    .filter(({ habit }) => selectedCategory === 'All' || habit.category === selectedCategory)
+                    .map(({ habit, originalIndex }) => (
+                    <th key={originalIndex} className="border p-2 bg-gray-50">
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <span className="flex-grow text-center font-medium">{habit.name}</span>
                         <Button
@@ -307,7 +313,7 @@ const HabitTracker = () => {
                           variant="ghost"
                           size="sm"
                           onClick={() => {
-                            const filteredHabits = habits.filter((_, i) => i !== index);
+                            const filteredHabits = habits.filter((_, i) => i !== originalIndex);
                             setHabits(filteredHabits);
                           }}
                           className="text-red-500 hover:text-red-700"
@@ -319,55 +325,71 @@ const HabitTracker = () => {
                         Category: {habit.category}
                       </div>
                       <div className="text-xs text-gray-600 space-y-1">
-                        <div>{getStats(index).completed}/365 total days</div>
-                        <div>Current streak: {getStats(index).currentStreak} days</div>
-                        <div>Longest streak: {getStats(index).longestStreak} days</div>
-                        <div>Last 7 days: {getStats(index).lastWeek}/7</div>
-                        <div>Last 30 days: {getStats(index).lastMonth}/30</div>
+                        <div>{allStats[originalIndex].completed}/365 total days</div>
+                        <div>Current streak: {allStats[originalIndex].currentStreak} days</div>
+                        <div>Longest streak: {allStats[originalIndex].longestStreak} days</div>
+                        <div>Last 7 days: {allStats[originalIndex].lastWeek}/7</div>
+                        <div>Last 30 days: {allStats[originalIndex].lastMonth}/30</div>
                       </div>
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {YEAR_2025_DATES.map((date) => (
-                  <tr key={date}>
-                    <td className="border p-2 bg-gray-50">
-                        <div className="flex justify-between items-center">
-                          <div>
-                            {new Date(date).toLocaleDateString('en-US', { weekday: 'short' })}
-                            {date === new Date().toISOString().split('T')[0] && (
-                              <span className="ml-2 inline-block w-2 h-2 bg-blue-500 rounded-full" />
-                            )}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            W{getWeekNumber(new Date(date))}
-                          </div>
-                        </div>
-                        <div>{new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
-                    </td>
-                    {habits
-                      .filter(habit => selectedCategory === 'All' || habit.category === selectedCategory)
-                      .map((_, habitIndex) => {
-                      const isCompleted = completions[date]?.[habitIndex];
-                      return (
-                        <td
-                          key={`${date}-${habitIndex}`}
-                          className="border p-2 text-center cursor-pointer"
-                          onClick={() => toggleCompletion(date, habitIndex)}
-                        >
-                          <div
-                            className={`w-6 h-6 mx-auto rounded-full ${
-                              isCompleted
-                                ? 'bg-green-500'
-                                : 'border-2 border-gray-300'
-                            }`}
-                          />
+                {YEAR_2025_DATES.map((date, dateIndex) => {
+                  const prevDate = dateIndex > 0 ? YEAR_2025_DATES[dateIndex - 1] : null;
+                  const showMonthHeader = isNewMonth(date, prevDate);
+                  const filteredHabitsCount = habits.filter(h => selectedCategory === 'All' || h.category === selectedCategory).length;
+
+                  return (
+                    <React.Fragment key={date}>
+                      {showMonthHeader && (
+                        <tr>
+                          <td colSpan={filteredHabitsCount + 1} className="border p-2 bg-blue-100 font-semibold text-center">
+                            {new Date(date).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                          </td>
+                        </tr>
+                      )}
+                      <tr>
+                        <td className="border p-2 bg-gray-50">
+                            <div className="flex justify-between items-center">
+                              <div>
+                                {new Date(date).toLocaleDateString('en-US', { weekday: 'short' })}
+                                {date === new Date().toISOString().split('T')[0] && (
+                                  <span className="ml-2 inline-block w-2 h-2 bg-blue-500 rounded-full" />
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                W{getWeekNumber(new Date(date))}
+                              </div>
+                            </div>
+                            <div>{new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
                         </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                        {habits
+                          .map((habit, originalIndex) => ({ habit, originalIndex }))
+                          .filter(({ habit }) => selectedCategory === 'All' || habit.category === selectedCategory)
+                          .map(({ originalIndex }) => {
+                          const isCompleted = completions[date]?.[originalIndex];
+                          return (
+                            <td
+                              key={`${date}-${originalIndex}`}
+                              className="border p-2 text-center cursor-pointer"
+                              onClick={() => toggleCompletion(date, originalIndex)}
+                            >
+                              <div
+                                className={`w-6 h-6 mx-auto rounded-full ${
+                                  isCompleted
+                                    ? 'bg-green-500'
+                                    : 'border-2 border-gray-300'
+                                }`}
+                              />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
 
